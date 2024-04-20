@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from django.contrib.auth.hashers import make_password
 
 
 
@@ -16,21 +17,26 @@ class ShopUserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return ShopUser.objects.filter(user=self.request.user)
 
-    def perform_create(self, serializer):
-        # Check if a shop user already exists for the current user
-        if ShopUser.objects.filter(user=self.request.user).exists():
-            raise PermissionDenied("A shop user already exists for this user.")
+    '''def perform_create(self, serializer):    
         if not self.request.user.is_superuser:
-            raise PermissionDenied("You do not have permission to create Shop.")
+            raise PermissionDenied("You do not have permission to create Shopuser.")
         
         # Extract user data from request data
         user_data = self.request.data.pop('user', {})
         
         # Set the user field of the shop user to the current user
-        serializer.validated_data['user'] = self.request.user
+        #serializer.validated_data['user'] = self.request.user
         
         # Save shop user and user
         shop_user_instance = serializer.save()
+        # Manually fetch the id of the created instance and add it to the serializer data
+        shop_user_id = shop_user_instance.id
+        print("ShopUser  after in api id:", shop_user_id)
+
+        serializer_data = serializer.data
+        serializer_data['id'] = shop_user_id
+        print("ShopUser  after in api:", serializer_data)
+        
         user_serializer = UserSerializer(data=user_data)
         if user_serializer.is_valid():
             user_serializer.save()
@@ -38,7 +44,32 @@ class ShopUserViewSet(viewsets.ModelViewSet):
             shop_user_instance.delete()  # Rollback creation if user creation fails
             return Response(user_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer_data, status=status.HTTP_201_CREATED)'''
+    def perform_create(self, serializer):    
+        if not self.request.user.is_superuser:
+            raise PermissionDenied("You do not have permission to create Shopuser.")
+        
+        # Extract user data from request data
+        user_data = self.request.data.pop('user', {})
+        
+        # Hash the password before saving the user
+        if 'password' in user_data:
+            hashed_password = make_password(user_data['password'])
+            print("Hashed password:", hashed_password)
+            user_data['password'] = hashed_password
+        
+        # Save shop user and user
+        serializer.is_valid(raise_exception=True)
+        shop_user_instance = serializer.save()
+        
+        # Add the id of the created instance to the serializer data
+        serializer_data = serializer.data
+        serializer_data['id'] = shop_user_instance.id
+        
+        # No need to save user_serializer separately, it's automatically saved
+        
+        return Response(serializer_data, status=status.HTTP_201_CREATED)
+
 
 
 class ShopViewSet(viewsets.ModelViewSet):
@@ -88,13 +119,25 @@ class PaymentViewSet(viewsets.ModelViewSet):
         consumer_code = request.data.get('consumer_code')
         amount = request.data.get('amount')
         payment_type = request.data.get('type')
-        shop_id = request.data.get('shop')  # Assuming you're passing shop ID
-
-
+        #shop_id = request.data.get('shop')  # Assuming you're passing shop ID
+        # Fetch the shop ID from the middleware
+        '''shop_id = getattr(request, 'shop_id', None)
+        print("shopid:")
+        print( shop_id)
+        if shop_id is None:
+            return Response({"message": "Shop ID not found in request."}, status=status.HTTP_400_BAD_REQUEST)'''
+        
+        shop = self.request.get_shop()
+        print("shop",shop)
+        if shop is None:
+            return Response({"message": "Shop  not found in request."}, status=status.HTTP_400_BAD_REQUEST)
         try:
             consumer = Consumer.objects.get(code=consumer_code)
         except Consumer.DoesNotExist:
             return Response({"message": "Consumer not found. Please create the consumer first."}, status=status.HTTP_404_NOT_FOUND)
+         # Check if the shop associated with the payment matches the shop associated with the consumer's creator
+        if consumer.created_by.shopuser.related_shop.id != shop_id:
+            return Response({"message": "Payment shop does not match consumer creator's shop."}, status=status.HTTP_400_BAD_REQUEST)
 
         if payment_type == 'debit':
             consumer.total_debit += amount

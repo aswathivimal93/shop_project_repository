@@ -45,6 +45,7 @@ class Consumer(models.Model):
 
     def __str__(self):
         return self.name
+    
 
 class Payment(models.Model):
     AMOUNT_CHOICES = (

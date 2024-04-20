@@ -12,8 +12,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 import os
-import environ
 from pathlib import Path
+import environ 
 
 env = environ.Env()
 environ.Env.read_env()
@@ -66,6 +66,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'shop.shop_middleware.ShopMiddleware',
 ]
 
 ROOT_URLCONF = 'shop_project.urls'
