@@ -22,7 +22,7 @@ class ShopMiddleware:
         def get_shop():
             if not hasattr(request, "_shop"):
                 if request.user.is_authenticated:
-                    shopuser_profile = getattr(request.user, 'staff', None)
+                    shopuser_profile = getattr(request.user, 'shopuser', None)
                     request._shop = shopuser_profile.related_shop if shopuser_profile else None
                 else:
                     request._shop = None
